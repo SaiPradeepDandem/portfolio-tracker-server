@@ -51,7 +51,9 @@ app.get('/api/positions', (request, response) => {
 
 app.get('/api/positions/:id', (request, response) => {
     const id = request.params.id
-    const position = positions.find(position => position.id === id)
+    console.log("Asking for : ", positions)
+    const position = positions.find(position => position.id == id)
+    console.log("Position for : ", position)
     if (position) {
         response.json(position)
     } else {
@@ -61,7 +63,7 @@ app.get('/api/positions/:id', (request, response) => {
 
 app.delete('/api/positions/:id', (request, response) => {
     const id = request.params.id
-    positions = positions.filter(position => position.id !== id)
+    positions = positions.filter(position => position.id != id)
 
     response.status(204).end()
 })
@@ -78,17 +80,30 @@ app.put('/api/positions/:id', (request, response) => {
 
     if (!body.ticker) {
         return response.status(400).json({
-            error: 'content missing'
+            error: 'ticker missing'
         })
     }
+    const id = request.params.id
+    const position = {
+        id: id,
+        ticker: body.ticker,
+        quantity: body.quantity,
+        buyPrice: body.buyPrice,
+        currentPrice: body.currentPrice,
+        exchange: body.exchange,
+        currency: body.currency,
+    }
+    positions = positions.filter(position => position.id != id).concat(position)
+
+     response.json(position)
 })
 
 app.post('/api/positions', (request, response) => {
     const body = request.body
 
-    if (!body.content) {
+    if (!body.ticker) {
         return response.status(400).json({
-            error: 'content missing'
+            error: 'ticker missing'
         })
     }
 
