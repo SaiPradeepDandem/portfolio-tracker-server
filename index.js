@@ -60,7 +60,7 @@ app.delete('/api/positions/:id', async (request, response) => {
 })
 
 app.put('/api/positions/:id', async (request, response) => {
-    const { ticker, quantity, buyPrice, currentPrice, exchange, currency } = request.body;
+    const { ticker, quantity, buy_price, current_price, exchange, currency } = request.body;
     const id = Number(request.params.id)
     if (!ticker) {
         return response.status(400).json({
@@ -70,7 +70,7 @@ app.put('/api/positions/:id', async (request, response) => {
     try {
         const result = await client.query(
             'UPDATE position SET ticker=$1, quantity=$2, buy_price=$3, current_price=$4, exchange=$5, currency=$6 WHERE id=$7  RETURNING *',
-            [ticker, quantity, buyPrice, currentPrice, exchange, currency, id]);
+            [ticker, quantity, buy_price, current_price, exchange, currency, id]);
 
         if (result.rows.length === 0) {
             return response.status(404).json({ error: 'position not found' })
@@ -84,7 +84,7 @@ app.put('/api/positions/:id', async (request, response) => {
 })
 
 app.post('/api/positions', async (request, response) => {
-    const { ticker, quantity, buyPrice, currentPrice, exchange, currency } = request.body;
+    const { ticker, quantity, buy_price, current_price, exchange, currency } = request.body;
 
     if (!ticker) {
         return response.status(400).json({
@@ -95,7 +95,7 @@ app.post('/api/positions', async (request, response) => {
     try {
         const result = await client.query(
             'INSERT INTO position (ticker, quantity, buy_price, current_price, exchange, currency) VALUES ($1, $2, $3, $4, $5, $6)  RETURNING *',
-            [ticker, quantity, buyPrice, currentPrice, exchange, currency]
+            [ticker, quantity, buy_price, current_price, exchange, currency]
         );
         const position = result.rows[0];
 
