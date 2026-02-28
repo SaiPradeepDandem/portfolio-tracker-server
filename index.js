@@ -2,7 +2,7 @@ const express = require('express');
 const { Client } = require('pg');
 const app = express();
 const client = new Client({
-    connectionString: 'postgresql://portfoliotracker_n2s0_user:TTWnOv5UNUjixl74lkgbDWIaecBNt8jI@dpg-d6h9sdhdrdic73cigmmg-a.singapore-postgres.render.com/portfoliotracker_n2s0',
+    connectionString: process.env.DATABASE_URL,
     ssl: {
         rejectUnauthorized: false
     }
