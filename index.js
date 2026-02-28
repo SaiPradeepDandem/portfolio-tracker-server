@@ -1,139 +1,108 @@
-const express = require('express')
-const app = express()
+const express = require('express');
+const { Client } = require('pg');
+const app = express();
+const client = new Client({
+    connectionString: 'postgresql://portfoliotracker_n2s0_user:TTWnOv5UNUjixl74lkgbDWIaecBNt8jI@dpg-d6h9sdhdrdic73cigmmg-a.singapore-postgres.render.com/portfoliotracker_n2s0',
+    ssl: {
+        rejectUnauthorized: false
+    }
+});
+(async () => {
+    try {
+        await client.connect();
+        console.log("Connected to PostgreSQL");
+    } catch (err) {
+        console.error("DB connection failed:", err);
+        process.exit(1);
+    }
+})();
+
 app.use(express.json())
 
 const cors = require('cors')
 app.use(cors())
-
 app.use(express.static('dist'))
-
-let positions = [
-    {
-        id: 1,
-        ticker: "WDS",
-        quantity: 20,
-        buyPrice: 26.01,
-        currentPrice: 24.36,
-        exchange: "ASX",
-        currency: "AUD",
-    },
-    {
-        id: 2,
-        ticker: "TLS",
-        quantity: 200,
-        buyPrice: 1.04,
-        currentPrice: 1.56,
-        exchange: "ASX",
-        currency: "AUD",
-    },
-    {
-        id: 3,
-        ticker: "VGA",
-        quantity: 10,
-        buyPrice: 226.55,
-        currentPrice: 226.90,
-        exchange: "ASX",
-        currency: "AUD",
-    },
-    {
-        id: 4,
-        ticker: "NVO",
-        quantity: 44,
-        buyPrice: 85.01,
-        currentPrice: 80.25,
-        exchange: "NYSE",
-        currency: "USD",
-    }
-]
 
 app.get('/', (request, response) => {
     response.send('<h1>Hello Portfolio Server!</h>')
 })
 
-app.get('/api/positions', (request, response) => {
-    response.json(positions)
+app.get('/api/positions', async (request, response) => {
+    try {
+        const result = await client.query('SELECT * FROM position ORDER BY id');
+        response.json(result.rows);
+    } catch (err) {
+        res.status(500).send(err.message);
+    }
 })
 
-app.get('/api/positions/:id', (request, response) => {
+app.get('/api/positions/:id', async (request, response) => {
     const id = Number(request.params.id)
-    console.log("Asking for : ", positions)
-    const position = positions.find(position => position.id === id)
-    console.log("Position for : ", position)
-    if (position) {
+    try {
+        const result = await client.query('SELECT * FROM position WHERE id = $1', [id]);
+        response.json(result.rows[0]);
+    } catch (err) {
+        res.status(500).send(err.message);
+    }
+})
+
+app.delete('/api/positions/:id', async (request, response) => {
+    const id = Number(request.params.id)
+    try {
+        const result = await client.query('DELETE FROM position WHERE id = $1 RETURNING id', [id]);
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'position not found' });
+        }
+        response.status(204).end()
+    } catch (err) {
+        res.status(500).send(err.message);
+    }
+})
+
+app.put('/api/positions/:id', async (request, response) => {
+    const { ticker, quantity, buyPrice, currentPrice, exchange, currency } = request.body;
+    const id = Number(request.params.id)
+    if (!ticker) {
+        return response.status(400).json({
+            error: 'ticker missing'
+        })
+    }
+    try {
+        const result = await client.query(
+            'UPDATE position SET ticker=$1, quantity=$2, buy_price=$3, current_price=$4, exchange=$5, currency=$6 WHERE id=$7  RETURNING *',
+            [ticker, quantity, buyPrice, currentPrice, exchange, currency, id]);
+
+        if (result.rows.length === 0) {
+            return response.status(404).json({ error: 'position not found' })
+        }
+
+        const position = result.rows[0];
         response.json(position)
-    } else {
-        response.status(404).end()
+    } catch (err) {
+        res.status(500).send(err.message);
     }
 })
 
-app.delete('/api/positions/:id', (request, response) => {
-    const id = Number(request.params.id)
-    const initialLength = positions.length
-    positions = positions.filter(position => position.id !== id)
+app.post('/api/positions', async (request, response) => {
+    const { ticker, quantity, buyPrice, currentPrice, exchange, currency } = request.body;
 
-    if (positions.length === initialLength) {
-        return response.status(404).json({ error: 'position not found' })
-    }
-    
-    response.status(204).end()
-})
-
-const generateId = () => {
-    const maxId = positions.length > 0
-        ? Math.max(...positions.map(n => n.id))
-        : 0
-    return maxId + 1  
-}
-
-app.put('/api/positions/:id', (request, response) => {
-    const id = Number(request.params.id)
-    const index = positions.findIndex(p => p.id === id)
-
-    if (index === -1) {
-        return response.status(404).json({ error: 'position not found' })
-    }
-
-    const body = request.body
-    if (!body.ticker) {
-        return response.status(400).json({
-            error: 'ticker missing'
-        })
-    }
-    const position = {
-        id: id,
-        ticker: body.ticker,
-        quantity: body.quantity,
-        buyPrice: body.buyPrice,
-        currentPrice: body.currentPrice,
-        exchange: body.exchange,
-        currency: body.currency,
-    }
-    positions[index] = position
-    response.json(position)
-})
-
-app.post('/api/positions', (request, response) => {
-    const body = request.body
-
-    if (!body.ticker) {
+    if (!ticker) {
         return response.status(400).json({
             error: 'ticker missing'
         })
     }
 
-    const position = {
-        id: generateId(),
-        ticker: body.ticker,
-        quantity: body.quantity,
-        buyPrice: body.buyPrice,
-        currentPrice: body.currentPrice,
-        exchange: body.exchange,
-        currency: body.currency,
+    try {
+        const result = await client.query(
+            'INSERT INTO position (ticker, quantity, buy_price, current_price, exchange, currency) VALUES ($1, $2, $3, $4, $5, $6)  RETURNING *',
+            [ticker, quantity, buyPrice, currentPrice, exchange, currency]
+        );
+        const position = result.rows[0];
+
+        response.status(201).json(result.rows[0]);
+    } catch (err) {
+        res.status(500).send(err.message);
     }
-
-    positions = positions.concat(position)
-
-    response.json(position)
 })
 
 const PORT = process.env.PORT || 3001
