@@ -5,6 +5,8 @@ app.use(express.json())
 const cors = require('cors')
 app.use(cors())
 
+app.use(express.static('dist'))
+
 let positions = [
     {
         id: 1,
@@ -45,7 +47,7 @@ let positions = [
 ]
 
 app.get('/', (request, response) => {
-    response.send('<h1>Hello World!</h>')
+    response.send('<h1>Hello Portfolio Server!</h>')
 })
 
 app.get('/api/positions', (request, response) => {
@@ -53,9 +55,9 @@ app.get('/api/positions', (request, response) => {
 })
 
 app.get('/api/positions/:id', (request, response) => {
-    const id = request.params.id
+    const id = Number(request.params.id)
     console.log("Asking for : ", positions)
-    const position = positions.find(position => position.id == id)
+    const position = positions.find(position => position.id === id)
     console.log("Position for : ", position)
     if (position) {
         response.json(position)
@@ -65,28 +67,38 @@ app.get('/api/positions/:id', (request, response) => {
 })
 
 app.delete('/api/positions/:id', (request, response) => {
-    const id = request.params.id
-    positions = positions.filter(position => position.id != id)
+    const id = Number(request.params.id)
+    const initialLength = positions.length
+    positions = positions.filter(position => position.id !== id)
 
+    if (positions.length === initialLength) {
+        return response.status(404).json({ error: 'position not found' })
+    }
+    
     response.status(204).end()
 })
 
 const generateId = () => {
     const maxId = positions.length > 0
-        ? Math.max(...positions.map(n => Number(n.id)))
+        ? Math.max(...positions.map(n => n.id))
         : 0
-    return String(maxId + 1)
+    return maxId + 1  
 }
 
 app.put('/api/positions/:id', (request, response) => {
-    const body = request.body
+    const id = Number(request.params.id)
+    const index = positions.findIndex(p => p.id === id)
 
+    if (index === -1) {
+        return response.status(404).json({ error: 'position not found' })
+    }
+
+    const body = request.body
     if (!body.ticker) {
         return response.status(400).json({
             error: 'ticker missing'
         })
     }
-    const id = request.params.id
     const position = {
         id: id,
         ticker: body.ticker,
@@ -96,9 +108,8 @@ app.put('/api/positions/:id', (request, response) => {
         exchange: body.exchange,
         currency: body.currency,
     }
-    positions = positions.filter(position => position.id != id).concat(position)
-
-     response.json(position)
+    positions[index] = position
+    response.json(position)
 })
 
 app.post('/api/positions', (request, response) => {
