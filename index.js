@@ -1,12 +1,20 @@
 const express = require('express');
 const { Client } = require('pg');
 const app = express();
+const isLocal =
+    !process.env.DATABASE_URL ||
+    process.env.DATABASE_URL.includes("localhost") ||
+    process.env.DATABASE_URL.includes("127.0.0.1");
+
 const client = new Client({
-    connectionString: process.env.DATABASE_URL,
-    ssl: {
-        rejectUnauthorized: false
-    }
+    connectionString:
+        process.env.DATABASE_URL ||
+        "postgresql://postgres:super@localhost:5432/postgres",
+    ssl: isLocal
+        ? false
+        : { rejectUnauthorized: false },
 });
+
 (async () => {
     try {
         await client.connect();
@@ -23,6 +31,10 @@ const cors = require('cors')
 app.use(cors())
 app.use(express.static('dist'))
 
+const SUCCESS_CODE = 201;
+const VALIDATION_ERROR_CODE = 400;
+const SERVER_ERROR_CODE = 500;
+
 app.get('/', (request, response) => {
     response.send('<h1>Hello Portfolio Server!</h>')
 })
@@ -32,7 +44,7 @@ app.get('/api/positions', async (request, response) => {
         const result = await client.query('SELECT * FROM position ORDER BY id');
         response.json(result.rows);
     } catch (err) {
-        res.status(500).send(err.message);
+        response.status(SERVER_ERROR_CODE).send(err.message);
     }
 })
 
@@ -42,7 +54,7 @@ app.get('/api/positions/:id', async (request, response) => {
         const result = await client.query('SELECT * FROM position WHERE id = $1', [id]);
         response.json(result.rows[0]);
     } catch (err) {
-        res.status(500).send(err.message);
+        response.status(SERVER_ERROR_CODE).send(err.message);
     }
 })
 
@@ -51,20 +63,21 @@ app.delete('/api/positions/:id', async (request, response) => {
     try {
         const result = await client.query('DELETE FROM position WHERE id = $1 RETURNING id', [id]);
         if (result.rows.length === 0) {
-            return res.status(404).json({ error: 'position not found' });
+            return response.status(404).json({ error: 'position not found' });
         }
         response.status(204).end()
     } catch (err) {
-        res.status(500).send(err.message);
+        response.status(SERVER_ERROR_CODE).send(err.message);
     }
 })
 
 app.put('/api/positions/:id', async (request, response) => {
     const { ticker, quantity, buy_price, current_price, exchange, currency } = request.body;
     const id = Number(request.params.id)
-    if (!ticker) {
-        return response.status(400).json({
-            error: 'ticker missing'
+    const validateMsg = validatePosition({ ticker, quantity, buy_price, current_price, exchange, currency });
+    if (validateMsg != null) {
+        return response.status(VALIDATION_ERROR_CODE).json({
+            error: validateMsg
         })
     }
     try {
@@ -79,16 +92,17 @@ app.put('/api/positions/:id', async (request, response) => {
         const position = result.rows[0];
         response.json(position)
     } catch (err) {
-        res.status(500).send(err.message);
+        response.status(SERVER_ERROR_CODE).send(err.message);
     }
 })
 
 app.post('/api/positions', async (request, response) => {
     const { ticker, quantity, buy_price, current_price, exchange, currency } = request.body;
 
-    if (!ticker) {
-        return response.status(400).json({
-            error: 'ticker missing'
+    const validateMsg = validatePosition({ ticker, quantity, buy_price, current_price, exchange, currency });
+    if (validateMsg != null) {
+        return response.status(VALIDATION_ERROR_CODE).json({
+            error: validateMsg
         })
     }
 
@@ -99,9 +113,9 @@ app.post('/api/positions', async (request, response) => {
         );
         const position = result.rows[0];
 
-        response.status(201).json(result.rows[0]);
+        response.status(SUCCESS_CODE).json(result.rows[0]);
     } catch (err) {
-        res.status(500).send(err.message);
+        response.status(SERVER_ERROR_CODE).send(err.message);
     }
 })
 
@@ -109,3 +123,25 @@ const PORT = process.env.PORT || 3001
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`)
 })
+
+const validatePosition = ({ ticker, quantity, buy_price, current_price, exchange, currency }) => {
+    if (!ticker) {
+        return 'Ticker missing';
+    }
+    if (!quantity) {
+        return 'Quantity missing';
+    }
+    if (!buy_price) {
+        return 'Buy Price missing';
+    }
+    if (!current_price) {
+        return 'Current Price missing';
+    }
+    if (!exchange) {
+        return 'Exchange missing';
+    }
+    if (!currency) {
+        return 'Currency missing';
+    }
+    return null;
+}
