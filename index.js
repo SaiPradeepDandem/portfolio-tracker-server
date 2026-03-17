@@ -1,6 +1,7 @@
 const express = require('express');
 const { Client } = require('pg');
 const app = express();
+const STOCK_API_KEY = "XXYZRX01OZAZUABM"; /* Ref: https://www.alphavantage.co/documentation/ */
 const isLocal =
     !process.env.DATABASE_URL ||
     process.env.DATABASE_URL.includes("localhost") ||
@@ -145,3 +146,29 @@ const validatePosition = ({ ticker, quantity, buy_price, current_price, exchange
     }
     return null;
 }
+
+var apiRequest = require('request');
+
+app.get('/api/ticker/:id', async (request, response) => {
+    const ticker = request.params.id
+
+    var url = 'https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol='+ticker+'&apikey='+STOCK_API_KEY;
+
+    apiRequest.get({
+        url: url,
+        json: true,
+        headers: { 'User-Agent': 'request' }
+    }, (err, res, data) => {
+        if (err) {
+            console.log('Error:', err);
+            response.status(SERVER_ERROR_CODE).send("Error");
+        } else if (res.statusCode !== 200) {
+            console.log('Status:', res.statusCode);
+            response.status(res.statusCode).send("Error");
+        } else {
+            // data is successfully parsed as a JSON object:
+            console.log(data);
+            response.json(data);
+        }
+    });
+})
