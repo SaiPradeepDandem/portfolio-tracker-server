@@ -147,7 +147,7 @@ const validatePosition = ({ ticker, quantity, buy_price, current_price, exchange
 
 app.get('/api/ticker/:id', async (request, response) => {
     const ticker = request.params.id
-    var url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={ticker}&apikey={STOCK_API_KEY}`;
+    var url = 'https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol='+ticker+'&apikey='+STOCK_API_KEY;
     console.log("Requesting API for : " + url)
     apiRequest.get({
         url: url,
