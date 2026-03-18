@@ -1,16 +1,12 @@
+require('dotenv').config();
 const express = require('express');
 const { Client } = require('pg');
 const app = express();
-const STOCK_API_KEY = "XXYZRX01OZAZUABM"; /* Ref: https://www.alphavantage.co/documentation/ */
-const isLocal =
-    !process.env.DATABASE_URL ||
-    process.env.DATABASE_URL.includes("localhost") ||
-    process.env.DATABASE_URL.includes("127.0.0.1");
+const STOCK_API_KEY = process.env.STOCK_API_KEY; /* Ref: https://www.alphavantage.co/documentation/ */
+const isLocal = process.env.DATABASE_URL.includes("localhost");
 
 const client = new Client({
-    connectionString:
-        process.env.DATABASE_URL ||
-        "postgresql://postgres:super@localhost:5432/postgres",
+    connectionString: process.env.DATABASE_URL,
     ssl: isLocal
         ? false
         : { rejectUnauthorized: false },
@@ -31,6 +27,8 @@ app.use(express.json())
 const cors = require('cors')
 app.use(cors())
 app.use(express.static('dist'))
+
+const apiRequest = require('request');
 
 const SUCCESS_CODE = 201;
 const VALIDATION_ERROR_CODE = 400;
@@ -147,13 +145,10 @@ const validatePosition = ({ ticker, quantity, buy_price, current_price, exchange
     return null;
 }
 
-var apiRequest = require('request');
-
 app.get('/api/ticker/:id', async (request, response) => {
     const ticker = request.params.id
-
-    var url = 'https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol='+ticker+'&apikey='+STOCK_API_KEY;
-
+    var url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={ticker}&apikey={STOCK_API_KEY}`;
+    console.log("Requesting API for : " + url)
     apiRequest.get({
         url: url,
         json: true,
@@ -172,3 +167,23 @@ app.get('/api/ticker/:id', async (request, response) => {
         }
     });
 })
+
+var getTickerCurrentPrice = async (ticker) => {
+    const price = await apiRequest.get({
+        url: url,
+        json: true,
+        headers: { 'User-Agent': 'request' }
+    }, (err, res, data) => {
+        if (err) {
+            console.log('Error:', err);
+            return null;
+        } else if (res.statusCode !== 200) {
+            console.log('Status:', res.statusCode);
+            response.status(res.statusCode).send("Error");
+        } else {
+            // data is successfully parsed as a JSON object:
+            console.log(data);
+            response.json(data);
+        }
+    });
+};
